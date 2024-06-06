@@ -69,4 +69,98 @@ GPUのほうの queueが動かない！
 
 ひとまずGPUは使わないので、あと回し！
 
+# メモリ(つまりは配列)の扱い
+
+メモリは、CPU/GPUに独立に存在する。
+これらは、別のデバイスなので例えばCPU から GPU のメモリにアクセスしようとすると時間がかかる。
+なので、最低限の頻度でコピーする。
+
+SYCLでは、なんかうまくやってくれるっぽいけど、明示的に行うこともできるようである。
+
+## 明示的な方法
+
+handler は、 内部にメンバー関数 memcpy を持っているので、これを使用するとCPU<-> GPUでのメモリのコピーが可能。
+
+``` cpp
 	
+	std::vector<int> A(100);
+	int* dA = malloc_device(100);
+	q.submit([&](handler& h)
+	{
+		h.memcpy(dA,A.data(),100*sizeof(int));
+	});
+```
+
+みたいな形式でいけるっぽい。
+
+
+## Buffers を使用する方法
+
+bufferは、メモリを管理するためのオブジェクトで、std::vector と紐づけておけばそれで、ホストとデバイスの両方からアクセス可能なメモリ領域を確保してくれるっぽい。
+ただし、これは直接アクセスできないので、 ``accesor`` を媒介する必要がある。
+accessorは、第一引数に、buffer をとり、第二引数にはモードをとる。
+モードは、
+- read_only
+- write_only
+- read_write
+を使用することができる。
+
+accesorは、handler.parallel_forの中でアクセスできる。
+
+問題は、いつホストの　buffer が書き換えられているか？なのよね。
+勝手にコピーされるのは、管理が複雑になるため少しいやだなと思ってしまう。
+
+
+``` cpp
+
+	/**
+	* まだ原因はわからないが、gpu デバイスを見つけることはできないので、
+	* CPUで動かすことにするとして
+	*/
+
+	#include <sycl/sycl.hpp>
+	#include <vector>
+	#include <iostream>
+	#include <string>
+
+	int main()
+	{
+		const int N = 100;
+
+		// initialize host array
+		std::vector<int> A(N, 1),B(N, 2),C(N, 0);
+		 
+		// create buffer to prepair calculating in device
+		sycl::buffer A_buf(A),B_buf(B),C_buf(C);
+
+		// setting queue
+		sycl::queue Q;
+		std::cout << "Start of device : "
+			<< Q.get_device().get_info<sycl::info::device::name>() << std::endl;
+		Q.submit([&](sycl::handler& h)
+			{
+				sycl::accessor a(A_buf, h, sycl::read_only);
+				sycl::accessor b(B_buf, h, sycl::read_only);
+				sycl::accessor c(C_buf, h, sycl::write_only);
+				h.parallel_for(N,[=](sycl::id<1> i) {
+					c[i] = a[i] + b[i];
+				});
+			}
+		);
+		Q.wait();
+		
+		/**
+		* accesor で c に結びついているとはいえ、Cに
+		* そのままいけるのは、少し意味が解らない。
+		* 勝手にホストにコピーしているんだとしたら、。。。
+		* host ですべて完結しているからなのか？
+		*/
+		for (int i = 0; i < N; i++)
+		{
+			std::cout << C[i] << std::endl;
+		}
+			
+	}
+
+
+```
