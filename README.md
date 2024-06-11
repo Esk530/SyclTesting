@@ -164,3 +164,55 @@ accesorは、handler.parallel_forの中でアクセスできる。
 
 
 ```
+
+# Git について
+
+# CMakeについて
+
+cmake の作業は、cmake_gui から使用することが多かったが、インストールらへんの手続き方法がわからなかったり、build 作業がコマンド一発できる利点を考えると、コマンドから実行する方法を知っておくと便利な気がしている。
+cmake のコマンドを箇条書きにしておく
+
+
+## Windows solution fileの作成
+
+### Path の設定
+まずは、pathを通す。
+cmake install 字にpath を通すか聞かれるが、ある程度は手動でやらないと環境が変わった場合に何が必要かわからなくなるので手動で行う。
+cmake は、
+
+C:\Program Files\CMake
+
+にインストールされる。この中のbin にpathを通す。
+
+cmake --help 
+
+でヘルプを見ることができるので、確認
+
+### 基本コマンド(自分が理解できている内容)
+
+	cmake -S [CMakeLists.txtのあるディレクトリ] -D [buildディレクトリ]
+
+# HDF5について
+
+hdf5 のインストール手順
+
+1. まず https://portal.hdfgroup.org/downloads/hdf5/hdf5_1_14_4.html から ソースファイルをダウンロード
+2. 解凍したフォルダの中の config\cmake にある cachInit.cmake を編集する。
+	fortran のライブラリが不要であれば、Fortran Option を変更する	
+3. ソリューションファイルの作成
+
+	cmake -S [CMakeLists.txtのあるディレクトリ] -B [buildを作成するディレクトリ] (-G "Visual Studio 16 2019")  
+	詳細はcmake --help から
+4. ビルドの実行
+	
+	cmake --build ./build --config Debug/Release
+	
+5. cpack でパッケージの作成
+
+	cpack -C Debug/Release -G 7Z -config CPackConfig.cmake -B [名前]
+
+とすると、build ディレクトリに名前フォルダが作成され、その中にパッケージが7Zip 形式で作成される。
+
+Release/Debug と順番に作成すると、上書きされるため別々に作成するのがよい。
+
+	
